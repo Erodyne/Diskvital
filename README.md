@@ -12,6 +12,7 @@ Salute, temperatura e storico dei dischi, nello stile di MultiTool ed Erodyne Su
 - **Storico**: ogni lettura viene salvata (`%APPDATA%\DiskVital\storico`), con grafico della temperatura ed elenco degli eventi (es. "Settori riallocati: da 0 a 8", con data e ora).
 - **Monitoraggio**: interruttore nella barra laterale. Crea un'attività pianificata all'accesso (privilegi elevati, niente richiesta UAC, funziona anche a batteria), controlla i dischi ogni 10 minuti dall'area di notifica e avvisa se un disco peggiora o scalda troppo. Solo con DiskVital installato in Programmi.
 - **Rapporto**: "Copia rapporto" (Ctrl+C) per un disco, "Esporta rapporto" in HTML o testo per tutti.
+- **Certificato di stato del disco**: "Salva in PDF" / "Salva in JPEG" nella vista del disco. Pagina A4 con giudizio, identificazione, valori principali, tutti gli attributi, riepilogo dello storico e ID documento.
 - Soglie di temperatura per tipo di disco; per gli NVMe quelle dichiarate dal produttore.
 
 ## Installazione

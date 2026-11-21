@@ -88,6 +88,8 @@ public class MainForm : Form, IMessageFilter {
     [DllImport("user32.dll")] static extern bool ReleaseCapture();
     [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int m, IntPtr w, IntPtr l);
     [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr h, int a, ref int v, int s);
+    [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
+    [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int i, int v);
     void DragWindow() { try { ReleaseCapture(); SendMessage(Handle, 0xA1, (IntPtr)2, IntPtr.Zero); } catch { } }
     void ToggleMax() { WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized; }
     protected override CreateParams CreateParams {
@@ -108,6 +110,18 @@ public class MainForm : Form, IMessageFilter {
             m.Result = IntPtr.Zero; return;
         }
         if (m.Msg == 0x84) { int h = HitEdge(m.LParam); if (h != 0) { m.Result = (IntPtr)h; return; } }
+        // Windows (uxtheme) ridisegna la vecchia barra del titolo sopra la nostra all'attivazione,
+        // al cambio di titolo/icona e dopo il ripristino: si bloccano quei disegni.
+        if (m.Msg == 0xAE || m.Msg == 0xAF) { m.Result = IntPtr.Zero; return; }          // WM_NCUAHDRAWCAPTION / WM_NCUAHDRAWFRAME
+        if (m.Msg == 0x85) { m.Result = IntPtr.Zero; return; }                           // WM_NCPAINT: non c'è area non client
+        if (m.Msg == 0x86) { m.LParam = new IntPtr(-1); base.WndProc(ref m); m.Result = (IntPtr)1; return; } // WM_NCACTIVATE senza ridisegno
+        if ((m.Msg == 0x0C || m.Msg == 0x80) && IsHandleCreated) {                        // WM_SETTEXT / WM_SETICON
+            int st = GetWindowLong(Handle, -16);
+            SetWindowLong(Handle, -16, st & ~0x10000000);                                // senza WS_VISIBLE non disegna
+            base.WndProc(ref m);
+            SetWindowLong(Handle, -16, st);
+            return;
+        }
         base.WndProc(ref m);
         if (m.Msg == 0x24) {
             try {
@@ -190,6 +204,27 @@ public class MainForm : Form, IMessageFilter {
     void CopyReport() {
         try { Clipboard.SetText(Report.Text(Cur)); SetStatus("Rapporto di " + Cur.Model + " copiato negli appunti"); }
         catch (Exception e) { SetStatus("Copia non riuscita: " + e.Message); }
+    }
+
+    // Certificato di stato del disco (pagina A4) in PDF o JPEG
+    void SaveCertificate(bool pdf) {
+        var d = Cur;
+        if (d == null) return;
+        var safe = System.Text.RegularExpressions.Regex.Replace(d.Model, @"[\\/:*?""<>|]+", " ").Trim();
+        using (var dlg = new SaveFileDialog {
+            Title = pdf ? "Salva il certificato in PDF" : "Salva il certificato in JPEG",
+            Filter = pdf ? "Documento PDF (*.pdf)|*.pdf" : "Immagine JPEG (*.jpg)|*.jpg",
+            FileName = "Certificato DiskVital - " + safe + " - " + DateTime.Now.ToString("yyyy-MM-dd") + (pdf ? ".pdf" : ".jpg") }) {
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            try {
+                using (var bmp = Certificate.Render(d, d.Key == histKey ? hist : History.Load(d))) {
+                    if (pdf) Certificate.SavePdf(bmp, dlg.FileName, "Certificato di stato del disco - " + d.Model);
+                    else Certificate.SaveJpeg(bmp, dlg.FileName);
+                }
+                SetStatus("Certificato salvato: " + dlg.FileName + "  ·  ID " + Certificate.DocumentId(d));
+                try { Process.Start(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), "\"" + dlg.FileName + "\""); } catch { }
+            } catch (Exception e) { Program.Log(e); SetStatus("Salvataggio non riuscito: " + e.Message); }
+        }
     }
 
     void Export() {
@@ -313,7 +348,7 @@ public class MainForm : Form, IMessageFilter {
     }
 
     // ---------- contenuto ----------
-    RectangleF hero, tabsR, panel, copyR;
+    RectangleF hero, tabsR, panel, copyR, pdfR, jpgR;
     RectangleF[] tabR = new RectangleF[3];
     readonly List<RectangleF> rowR = new List<RectangleF>();
     RectangleF listArea;
@@ -463,10 +498,18 @@ public class MainForm : Form, IMessageFilter {
                 x = r.Right + 8;
             }
         using (var f = Th.F(9f, FontStyle.Bold)) {
-            const string t = "⧉  Copia rapporto";
-            float w = g.MeasureString(t, f).Width + 20;
-            copyR = new RectangleF(tabsR.Right - w, tabsR.Y, w, tabsR.Height);
-            Th.Text_(g, t, f, Th.Dim, copyR, StringAlignment.Center);
+            float rx = tabsR.Right;
+            Func<string, bool, RectangleF> btn = (t, primary) => {
+                float w = g.MeasureString(t, f).Width + (primary ? 30 : 20);
+                var r = new RectangleF(rx - w, tabsR.Y, w, tabsR.Height);
+                if (primary) using (var p = Th.Round(r, 10)) using (var b = new SolidBrush(Th.Surface)) g.FillPath(b, p);
+                Th.Text_(g, t, f, primary ? Th.Text : Th.Dim, r, StringAlignment.Center);
+                rx = r.Left - 8;
+                return r;
+            };
+            copyR = btn("⧉  Copia", false);
+            jpgR = btn("Salva in JPEG", true);
+            pdfR = btn("Salva in PDF", true);
         }
     }
 
@@ -677,13 +720,15 @@ public class MainForm : Form, IMessageFilter {
     bool ContentHot(Point pt) {
         if (Cur == null) return false;
         for (int i = 0; i < 3; i++) if (tabR[i].Contains(pt)) return true;
-        if (copyR.Contains(pt)) return true;
+        if (copyR.Contains(pt) || pdfR.Contains(pt) || jpgR.Contains(pt)) return true;
         return tab == 0 && listArea.Contains(pt) && rowR.Any(r => r.Contains(pt));
     }
     void ContentClick(object s, MouseEventArgs e) {
         if (Cur == null) return;
         for (int i = 0; i < 3; i++) if (tabR[i].Contains(e.Location)) { tab = i; content.Invalidate(); return; }
         if (copyR.Contains(e.Location)) { CopyReport(); return; }
+        if (pdfR.Contains(e.Location)) { SaveCertificate(true); return; }
+        if (jpgR.Contains(e.Location)) { SaveCertificate(false); return; }
         if (tab == 0 && listArea.Contains(e.Location))
             for (int i = 0; i < rowR.Count; i++) if (rowR[i].Contains(e.Location)) { attrSel = i; content.Invalidate(); return; }
     }

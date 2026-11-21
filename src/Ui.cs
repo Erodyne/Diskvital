@@ -21,7 +21,7 @@ public static class Th {
     public static readonly Color Amber = Color.FromArgb(0xFB, 0xBF, 0x24);
     public static readonly Color Red = Color.FromArgb(0xF8, 0x71, 0x71);
 
-    static readonly string Family = Pick("Segoe UI Variable Display", "Segoe UI", "DejaVu Sans");
+    public static readonly string Family = Pick("Segoe UI Variable Display", "Segoe UI", "DejaVu Sans");
     public static readonly bool HasGlyphs = Exists("Segoe MDL2 Assets") || Exists("Segoe Fluent Icons");
     static readonly string GlyphFamily = Exists("Segoe Fluent Icons") ? "Segoe Fluent Icons" : "Segoe MDL2 Assets";
 
