@@ -1,0 +1,6 @@
+*.exe
+*.sig
+*.sha256
+*PRIVATA*
+bin/
+obj/
