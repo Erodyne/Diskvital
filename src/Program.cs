@@ -6,14 +6,14 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("DiskVital")]
 [assembly: AssemblyCompany("Erodyne")]
 [assembly: AssemblyDescription("Salute, temperatura e storico dei dischi")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
-[assembly: AssemblyInformationalVersion("1.0.0")]
+[assembly: AssemblyVersion("1.0.1.0")]
+[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyInformationalVersion("1.0.1")]
 // DLL di sistema solo da System32: una DLL omonima lasciata in Download accanto all'exe non viene caricata
 [assembly: System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
 
 public static class Program {
-    public const string Version = "1.0.0";
+    public const string Version = "1.0.1";
     public const string AppMutex = "Erodyne.DiskVital.App", MonitorMutex = "Erodyne.DiskVital.Monitor", MonitorExit = "Erodyne.DiskVital.MonitorExit";
 
     public static void Log(object e) {
